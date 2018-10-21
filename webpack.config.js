@@ -23,6 +23,7 @@ module.exports = {
   },
   devtool: 'cheap-module-eval-source-map', 
   devServer: {
-    contentBase: root //uses bundle.js from memory
+    contentBase: root, //uses bundle.js from memory
+    historyApiFallback: true
   }
 }
