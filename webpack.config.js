@@ -23,6 +23,7 @@ module.exports = {
   },
   devtool: 'cheap-module-eval-source-map', 
   devServer: {
+    port: 1337,
     contentBase: root, //uses bundle.js from memory
     historyApiFallback: true
   }
