@@ -60,7 +60,7 @@ export const teams = {
       id: 2
     },
     {
-      name: "Green Acers",
+      name: "Green Acres",
       id: 3
     },
     {
