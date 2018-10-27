@@ -49,7 +49,7 @@ CREATE TABLE `Season_Points` (
 CREATE TABLE `Team_Players` (
   `team_players_id` int(11) NOT NULL AUTO_INCREMENT,
   `season_id` int(11) NOT NULL,
-  `team_id` int(11) NOT NULL,
+  `team_id` int(11) DE NULL,
   `player_id` int(11) NOT NULL,
   `jersey` int(11) DEFAULT NULL,
   PRIMARY KEY (`team_players_id`),

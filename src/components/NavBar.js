@@ -1,30 +1,31 @@
 import React from 'react'
 import { NavLink } from 'react-router-dom'
-import AppBar from '@material-ui/core/AppBar'
-import Toolbar from '@material-ui/core/Toolbar'
-import Button from '@material-ui/core/Button'
+import {
+  AppBar,
+  Toolbar,
+  Button,
+  Grid
+} from '@material-ui/core'
+import {menu} from '../_data'
 
 const NavBar = () => {
   return (
     <div>
-      <h1>Old Krocs</h1>
+      <Grid container direction="row" justify="center" alignItems="center">
+        <h1>Sports League</h1>
+      </Grid>
       <AppBar position="static">
         <Toolbar>
-          <Button component={NavLink} to="/" color="secondary" >
-            Home
-              </Button>
-          <Button component={NavLink} to="/teams" color="secondary" >
-            Teams
-              </Button>
-          <Button component={NavLink} to="/players" color="secondary" >
-            Players
-              </Button>
-          <Button component={NavLink} to="/games" color="secondary" >
-            Games
-              </Button>
+          <Grid container direction="row" justify="center" alignItems="center">
+            {
+              menu.list.map( (item, key) => 
+                (<Button key={key} component={NavLink} to={item.path} color="inherit">{item.name}</Button>) 
+              )
+            }
+          </Grid>
         </Toolbar>
       </AppBar>
-    </div>
+    </div >
   )
 }
 
