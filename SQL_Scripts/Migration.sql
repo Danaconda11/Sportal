@@ -190,6 +190,39 @@ BEGIN
 	FROM Teams;
 END$$
 
+CREATE PROCEDURE `GetTeamPlayerStats`()
+BEGIN
+    DECLARE done int DEFAULT FALSE;
+    DECLARE ID, G, A int(11);
+    DECLARE FST, LST varchar(512);
+    DECLARE PM time;
+    DECLARE cur CURSOR FOR SELECT Player_ID, First_Name, Last_Name FROM Players;
+    DECLARE CONTINUE HANDLER FOR NOT FOUND SET done=TRUE;
+    DROP TABLE IF EXISTS `TMP`;
+    CREATE TEMPORARY TABLE TMP(
+        `player_id` int(11),
+        `first_name` varchar(512),
+        `last_name` varchar(512),
+        `goals` int(11),
+        `assists` int(11),
+        `penalty_minutes` time
+    );
+    OPEN cur;
+    rdloop: LOOP
+        FETCH cur INTO ID, FST, LST;
+        IF done THEN
+            LEAVE rdloop;
+        END IF;
+        SELECT DISTINCT COALESCE(SUM(b.Goals),0) as Goals, COALESCE(SUM(b.Assists),0) as Assists, COALESCE(SEC_TO_TIME(SUM(TIME_TO_SEC(b.Penalty_Minutes))),0) as Penalty_Minutes
+        INTO @G, @A, @PM
+        FROM Games a, Player_Stats b, Teams c, Players d 
+        WHERE b.Player_ID = d.Player_ID AND b.Game_ID = a.Game_ID AND b.team_played_for = c.team_id AND d.Player_ID = ID;     
+        INSERT TMP VALUES (ID,FST,LST,@G,@A,@PM);
+    END LOOP;
+    CLOSE cur;
+    SELECT Player_ID, First_Name, Last_Name, Goals, Assists, Penalty_Minutes FROM TMP;
+END$$
+
 CREATE PROCEDURE `GetTeamPlayerStatsByGame`(
     IN GameID int(11),
     IN isHome tinyint(1)
