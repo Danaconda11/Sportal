@@ -53,19 +53,31 @@ export const teams = {
   list: [
     {
       name: "Black Aces",
-      id: 1
+      id: 1,
+      games: 30,
+      wins: 16,
+      losses: 14
     },
     {
       name: "White Knights",
-      id: 2
+      id: 2,
+      games: 30,
+      wins: 16,
+      losses: 14
     },
     {
       name: "Green Acres",
-      id: 3
+      id: 3,
+      games: 30,
+      wins: 16,
+      losses: 14
     },
     {
       name: "Red Caps",
-      id: 4
+      id: 4,
+      games: 30,
+      wins: 16,
+      losses: 14
     }
   ]
 }
