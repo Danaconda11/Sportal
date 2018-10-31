@@ -1,4 +1,4 @@
-import Timeline from '@material-ui/icons/Timeline'
+import {Person} from '@material-ui/icons/'
 import React from 'react'
 import MUIDataTable from "mui-datatables"
 import { players } from '../_data'
@@ -6,7 +6,7 @@ import { NavLink } from 'react-router-dom'
 
 const IconLink = props => (
   <NavLink to={`player/${props.player.id}`}>
-    <Timeline></Timeline>
+    <Person></Person>
   </NavLink>
 )
 

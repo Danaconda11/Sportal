@@ -14,14 +14,6 @@ export default class TeamCard extends React.Component {
       <Grow in={true} timeout={{enter: this.props.delay}}>
         <Card>
           <CardActionArea>
-            {/* <CardMedia
-            component="img"
-            alt="Contemplative Reptile"
-            className={classes.media}
-            height="140"
-            image="/static/images/cards/contemplative-reptile.jpg"
-            title="Contemplative Reptile"
-          /> */}
             <CardContent>
               <Typography gutterBottom variant="h5" component="h2">
                 {this.props.teamName}
