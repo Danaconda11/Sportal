@@ -126,15 +126,75 @@ CREATE PROCEDURE `GetGameScore`(
     IN GameID int(11)
 )
 BEGIN
-    SELECT Home_Team_ID, Home_Team_Name, Home_Goals, Away_Team_ID, Away_Team_Name, Away_Goals FROM
-    (SELECT a.Game_ID, c.Team_ID AS Home_Team_ID, c.Team_Name AS Home_Team_Name, SUM(b.Goals) AS Home_Goals
+    SELECT T2.Game_Datetime, Home_Team_ID, Home_Team_Name, Home_Goals, Away_Team_ID, Away_Team_Name, Away_Goals FROM
+    (SELECT a.Game_ID, a.Game_Datetime, c.Team_ID AS Home_Team_ID, c.Team_Name AS Home_Team_Name, SUM(b.Goals) AS Home_Goals
     FROM Games a, Player_Stats b, Teams c, Home_Team_Games d
     WHERE a.Game_ID = GameID AND a.Game_ID = b.Game_ID AND b.Team_Played_For = c.Team_ID AND c.Team_ID = d.Team_ID AND a.Home_Team_Game_ID = d.Home_Team_Game_ID) AS T1
     INNER JOIN
-    (SELECT a.Game_ID, c.Team_ID AS Away_Team_ID, c.Team_Name AS Away_Team_Name, SUM(b.Goals) AS Away_Goals
+    (SELECT a.Game_ID, a.Game_Datetime, c.Team_ID AS Away_Team_ID, c.Team_Name AS Away_Team_Name, SUM(b.Goals) AS Away_Goals
     FROM Games a, Player_Stats b, Teams c, Away_Team_Games d
     WHERE a.Game_ID = GameID AND a.Game_ID = b.Game_ID AND b.Team_Played_For = c.Team_ID AND c.Team_ID = d.Team_ID AND a.Away_Team_Game_ID = d.Away_Team_Game_ID) AS T2
     ON T1.Game_ID = T2.Game_ID;
+END$$
+
+CREATE PROCEDURE `GetGameScores`()
+BEGIN
+    DECLARE done int DEFAULT FALSE;
+    DECLARE G_ID, H_ID, H_GOALS, A_ID, A_GOALS int(11);
+    DECLARE H_NAME, A_NAME varchar(512);
+    DECLARE DT datetime;
+    DECLARE cur CURSOR FOR
+    SELECT DISTINCT Game_ID
+    FROM Games;
+    DROP TABLE IF EXISTS `TMP`;
+    CREATE TEMPORARY TABLE TMP(
+        `game_id` int(11),
+        `game_datetime` datetime,
+        `home_team_id` int(11),
+        `home_team_name` varchar(512),
+        `home_goals` int(11),
+        `away_team_id` int(11),
+        `away_team_name` varchar(512),
+        `away_goals` int(11)
+    );
+    OPEN cur;
+    rdloop: LOOP
+        FETCH cur INTO G_ID;
+        IF done THEN
+            LEAVE rdloop;
+        END IF;
+        SELECT T1.Game_Datetime, T1.Home_Team_ID, T1.Home_Team_Name, T1.Home_Goals, T2.Away_Team_ID, T2.Away_Team_Name, T2.Away_Goals
+        INTO @DT, @H_ID, @H_NAME, @H_GOALS, @A_ID, @A_Name, @A_GOALS FROM
+        (SELECT a.Game_ID, a.Game_Datetime, c.Team_ID AS Home_Team_ID, c.Team_Name AS Home_Team_Name, SUM(b.Goals) AS Home_Goals
+        FROM Games a, Player_Stats b, Teams c, Home_Team_Games d
+        WHERE a.Game_ID = G_ID AND a.Game_ID = b.Game_ID AND b.Team_Played_For = c.Team_ID AND c.Team_ID = d.Team_ID AND a.Home_Team_Game_ID = d.Home_Team_Game_ID) AS T1
+        INNER JOIN
+        (SELECT a.Game_ID, a.Game_Datetime, c.Team_ID AS Away_Team_ID, c.Team_Name AS Away_Team_Name, SUM(b.Goals) AS Away_Goals
+        FROM Games a, Player_Stats b, Teams c, Away_Team_Games d
+        WHERE a.Game_ID = G_ID AND a.Game_ID = b.Game_ID AND b.Team_Played_For = c.Team_ID AND c.Team_ID = d.Team_ID AND a.Away_Team_Game_ID = d.Away_Team_Game_ID) AS T2
+        ON T1.Game_ID = T2.Game_ID;
+        INSERT TMP VALUES (G_ID,@DT,@H_ID,@H_NAME,@H_GOALS,@A_ID,@A_NAME,@A_GOALS);
+    END LOOP;
+    CLOSE cur;
+    SELECT `Game_ID`,`Game_Datetime`,`Home_Team_ID`,`Home_Team_Name`,`Home_Goals`,`Away_Team_ID`,`Away_Team_Name`,`Away_Goals` FROM TMP;
+END$$
+
+CREATE PROCEDURE `GetGameStatsFORAwayTeam`(
+    IN GameID int(11)
+)
+BEGIN
+    SELECT d.Player_ID, b.Team_Played_For, d.First_Name, d.Last_Name, e.Jersey, b.Goals, b.Assists, b.Penalty_Minutes 
+    FROM Games a, Player_Stats b, Teams c, Players d, Team_Players e, Away_Team_Games f
+    WHERE b.Player_ID = d.Player_ID AND a.Game_ID = GameID AND b.Game_ID = a.Game_ID AND b.Team_Played_For = c.Team_ID AND d.Player_ID = e.Player_ID AND c.Team_ID = f.Team_ID AND a.Away_Team_Game_ID = f.Away_Team_Game_ID;
+END$$
+
+CREATE PROCEDURE `GetGameStatsFORHomeTeam`(
+    IN GameID int(11)
+)
+BEGIN
+    SELECT d.Player_ID, b.Team_Played_For, d.First_Name, d.Last_Name, e.Jersey, b.Goals, b.Assists, b.Penalty_Minutes 
+    FROM Games a, Player_Stats b, Teams c, Players d, Team_Players e, Home_Team_Games f
+    WHERE b.Player_ID = d.Player_ID AND a.Game_ID = GameID AND b.Game_ID = a.Game_ID AND b.Team_Played_For = c.Team_ID AND d.Player_ID = e.Player_ID AND c.Team_ID = f.Team_ID AND a.Home_Team_Game_ID = f.Home_Team_Game_ID;
 END$$
 
 CREATE PROCEDURE `GetGamesInMonth` (
@@ -162,47 +222,6 @@ BEGIN
     SELECT a.Game_ID, a.Game_Datetime, c.Team_Name, b.Goals, b.Assists, b.Penalty_minutes 
     FROM Games a, Player_Stats b, Teams c
     WHERE b.Player_ID = PlayerID AND b.Game_ID = a.Game_ID AND b.Team_Played_For = c.Team_ID;
-END$$
-
-CREATE PROCEDURE `GetSchedule`(
-    IN hasPlayedGames tinyint(1)
-)
-BEGIN
-    IF(hasPlayedGames = 1) THEN
-        SELECT a.Game_ID, a.Game_Datetime, b.Team_Name as Home_Team, c.Team_Name as Away_Team
-        FROM Games a, Teams b, Teams c, Home_Team_Games d, Away_Team_Games e
-        WHERE a.Home_Team_Game_ID = d.Home_Team_Game_ID AND a.Away_Team_Game_ID = e.Away_Team_Game_ID AND a.Game_Datetime < DATE_FORMAT(NOW(),'%Y-%m-%d %h:%i:%s')
-        ORDER BY a.Game_Datetime;
-    ElSE
-        SELECT a.Game_ID, a.Game_Datetime, b.Team_Name as Home_Team, c.Team_Name as Away_Team
-        FROM Games a, Teams b, Teams c, Home_Team_Games d, Away_Team_Games e
-        WHERE a.Home_Team_Game_ID = d.Home_Team_Game_ID AND a.Away_Team_Game_ID = e.Away_Team_Game_ID AND a.Game_Datetime >= DATE_FORMAT(NOW(),'%Y-%m-%d %h:%i:%s') 
-        ORDER BY a.Game_Datetime;
-    END IF;
-END$$
-
-CREATE PROCEDURE `GetTeamGoals`(
-    IN GameID int(11),
-    IN isHome tinyint(1)
-)
-BEGIN
-    IF(isHome = 1) THEN
-        SELECT c.Team_ID, c.Team_Name, SUM(b.Goals) as Goals  
-        FROM Games a, Player_Stats b, Teams c, Players d, Home_Team_Games e
-        WHERE b.Player_ID = d.Player_ID AND b.Game_ID = a.Game_ID AND b.Game_ID = GameID AND b.Team_Played_For = c.Team_ID AND a.Home_Team_Game_ID = e.Home_Team_Game_ID AND c.Team_ID = e.Team_ID
-        LIMIT 1;
-    ELSE
-        SELECT c.Team_ID, c.Team_Name, SUM(b.Goals) as Goals   
-        FROM Games a, Player_Stats b, Teams c, Players d, Away_Team_Games e
-        WHERE b.Player_ID = d.Player_ID AND b.Game_ID = a.Game_ID AND b.Game_ID = GameID AND b.Team_Played_For = c.Team_ID AND a.Away_Team_Game_ID = e.Away_Team_Game_ID AND c.Team_ID = e.Team_ID
-        LIMIT 1;
-    END IF;
-END$$
-
-CREATE PROCEDURE `GetTeamNames`()
-BEGIN
-	SELECT Team_ID, Team_Name
-	FROM Teams;
 END$$
 
 CREATE PROCEDURE `GetPlayerStats`()
@@ -245,7 +264,7 @@ BEGIN
     SELECT Player_ID, First_Name, Last_Name, Goals, Assists, Penalty_Minutes FROM TMP;
 END$$
 
-CREATE PROCEDURE `GetPlayerStatsBySeason`(
+CREATE PROCEDURE `GetPlayerStatsBYSeason`(
     IN SeasonID int(11)
 )
 BEGIN
@@ -289,7 +308,7 @@ BEGIN
     SELECT Player_ID, First_Name, Last_Name, Team_ID, Team_Name, Goals, Assists, Penalty_Minutes FROM TMP;
 END$$
 
-CREATE PROCEDURE `GetPlayerStatsBySeasonANDTeam`(
+CREATE PROCEDURE `GetPlayerStatsBYSeasonANDTeam`(
     IN SeasonID int(11),
     IN TeamID int(11)
 )
@@ -329,7 +348,7 @@ BEGIN
     SELECT Player_ID, First_Name, Last_Name, Goals, Assists, Penalty_Minutes FROM TMP;
 END$$
 
-CREATE PROCEDURE `GetPlayerStatsBySeasonFORSpares`(
+CREATE PROCEDURE `GetPlayerStatsBYSeasonFORSpares`(
     IN SeasonID int(11)
 )
 BEGIN
@@ -367,22 +386,23 @@ BEGIN
     SELECT Player_ID, First_Name, Last_Name, Goals, Assists, Penalty_Minutes FROM TMP;
 END$$
 
-CREATE PROCEDURE `GetTeamPlayerStatsByGame`(
-    IN GameID int(11),
-    IN isHome tinyint(1)
+CREATE PROCEDURE `GetSchedule`(
+    IN hasPlayedGames tinyint(1)
 )
 BEGIN
-    IF(isHome = 1) THEN
-        SELECT d.Player_ID, d.First_Name, d.Last_Name, b.Goals, b.Assists, b.Penalty_Minutes 
-        FROM Games a, Player_Stats b, Teams c, Players d, Home_Team_Games e
-        WHERE b.Player_ID = d.Player_ID AND a.Game_ID = GameID AND b.Game_ID = a.Game_ID AND b.Team_Played_For = c.Team_ID AND a.Home_Team_Game_ID = e.Home_Team_Game_ID;
-    ELSE
-        SELECT d.Player_ID, d.First_Name, d.Last_Name, b.Goals, b.Assists, b.Penalty_Minutes 
-        FROM Games a, Player_Stats b, Teams c, Players d, Away_Team_Games e
-        WHERE b.Player_ID = d.Player_ID AND a.Game_ID = GameID AND b.Game_ID = a.Game_ID AND b.Team_Played_For = c.Team_ID AND a.Away_Team_Game_ID = e.Away_Team_Game_ID;
+    IF(hasPlayedGames = 1) THEN
+        SELECT a.Game_ID, a.Game_Datetime, b.Team_Name as Home_Team, c.Team_Name as Away_Team
+        FROM Games a, Teams b, Teams c, Home_Team_Games d, Away_Team_Games e
+        WHERE a.Home_Team_Game_ID = d.Home_Team_Game_ID AND a.Away_Team_Game_ID = e.Away_Team_Game_ID AND a.Game_Datetime < DATE_FORMAT(NOW(),'%Y-%m-%d %h:%i:%s')
+        ORDER BY a.Game_Datetime;
+    ElSE
+        SELECT a.Game_ID, a.Game_Datetime, b.Team_Name as Home_Team, c.Team_Name as Away_Team
+        FROM Games a, Teams b, Teams c, Home_Team_Games d, Away_Team_Games e
+        WHERE a.Home_Team_Game_ID = d.Home_Team_Game_ID AND a.Away_Team_Game_ID = e.Away_Team_Game_ID AND a.Game_Datetime >= DATE_FORMAT(NOW(),'%Y-%m-%d %h:%i:%s') 
+        ORDER BY a.Game_Datetime;
     END IF;
 END$$
-
+												       
 CREATE PROCEDURE `GetTeamStats`(
     IN SeasonID int(11),
     IN TeamID int(11)
