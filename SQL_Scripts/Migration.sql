@@ -122,6 +122,21 @@ BEGIN
     LIMIT 1;
 END$$
 
+CREATE PROCEDURE `GetGameScore`(
+    IN GameID int(11)
+)
+BEGIN
+    SELECT Home_Team_ID, Home_Team_Name, Home_Goals, Away_Team_ID, Away_Team_Name, Away_Goals FROM
+    (SELECT a.Game_ID, c.Team_ID AS Home_Team_ID, c.Team_Name AS Home_Team_Name, SUM(b.Goals) AS Home_Goals
+    FROM Games a, Player_Stats b, Teams c, Home_Team_Games d
+    WHERE a.Game_ID = GameID AND a.Game_ID = b.Game_ID AND b.Team_Played_For = c.Team_ID AND c.Team_ID = d.Team_ID AND a.Home_Team_Game_ID = d.Home_Team_Game_ID) AS T1
+    INNER JOIN
+    (SELECT a.Game_ID, c.Team_ID AS Away_Team_ID, c.Team_Name AS Away_Team_Name, SUM(b.Goals) AS Away_Goals
+    FROM Games a, Player_Stats b, Teams c, Away_Team_Games d
+    WHERE a.Game_ID = GameID AND a.Game_ID = b.Game_ID AND b.Team_Played_For = c.Team_ID AND c.Team_ID = d.Team_ID AND a.Away_Team_Game_ID = d.Away_Team_Game_ID) AS T2
+    ON T1.Game_ID = T2.Game_ID;
+END$$
+
 CREATE PROCEDURE `GetGamesInMonth` (
     IN SelectedMonth date
 )
@@ -190,20 +205,60 @@ BEGIN
 	FROM Teams;
 END$$
 
-CREATE PROCEDURE `GetTeamPlayerStatsBySeason`(
+CREATE PROCEDURE `GetPlayerStats`()
+BEGIN
+    DECLARE done int DEFAULT FALSE;
+    DECLARE P_ID, G, A int(11);
+    DECLARE FST, LST varchar(512);
+    DECLARE PM time;
+    DECLARE cur CURSOR FOR 
+    (SELECT DISTINCT a.Player_ID, a.First_Name, a.Last_Name
+    FROM Players a, Team_Players b
+    WHERE a.Player_ID = b.Player_ID AND b.Team_ID IS NULL)
+    UNION ALL 
+    (SELECT DISTINCT a.Player_ID, a.First_Name, a.Last_Name
+    FROM Players a, Team_Players b, Teams c
+    WHERE a.Player_ID = b.Player_ID AND b.Team_ID = c.Team_ID);
+    DECLARE CONTINUE HANDLER FOR NOT FOUND SET done=TRUE;
+    DROP TABLE IF EXISTS `TMP`;
+    CREATE TEMPORARY TABLE TMP(
+        `player_id` int(11),
+        `first_name` varchar(512),
+        `last_name` varchar(512),
+        `goals` int(11),
+        `assists` int(11),
+        `penalty_minutes` time
+    );
+    OPEN cur;
+    rdloop: LOOP
+        FETCH cur INTO P_ID, FST, LST;
+        IF done THEN
+            LEAVE rdloop;
+        END IF;
+        SELECT DISTINCT COALESCE(SUM(b.Goals),0), COALESCE(SUM(b.Assists),0), COALESCE(SEC_TO_TIME(SUM(TIME_TO_SEC(b.Penalty_Minutes))),0)
+        INTO @G, @A, @PM
+        FROM Games a, Player_Stats b, Teams c, Players d, Team_Players e 
+        WHERE b.Player_ID = d.Player_ID AND b.Game_ID = a.Game_ID AND b.Team_Played_For = c.Team_ID AND d.Player_ID = e.Player_ID AND d.Player_ID = P_ID AND a.Season_ID = e.Season_ID;     
+        INSERT TMP VALUES (P_ID,FST,LST,@G,@A,@PM);
+    END LOOP;
+    CLOSE cur;
+    SELECT Player_ID, First_Name, Last_Name, Goals, Assists, Penalty_Minutes FROM TMP;
+END$$
+
+CREATE PROCEDURE `GetPlayerStatsBySeason`(
     IN SeasonID int(11)
 )
 BEGIN
     DECLARE done int DEFAULT FALSE;
-    DECLARE ID, G, A int(11);
+    DECLARE P_ID, T_ID, G, A int(11);
     DECLARE FST, LST, TM varchar(512);
     DECLARE PM time;
     DECLARE cur CURSOR FOR 
-    (SELECT DISTINCT a.Player_ID, a.First_Name, a.Last_Name, 'Spares'
+    (SELECT DISTINCT a.Player_ID, a.First_Name, a.Last_Name, NULL AS Team_ID, 'Spares'
     FROM Players a, Team_Players b
     WHERE a.Player_ID = b.Player_ID AND b.Season_ID = SeasonID AND b.Team_ID IS NULL)
     UNION ALL 
-    (SELECT DISTINCT a.Player_ID, a.First_Name, a.Last_Name, c.Team_Name
+    (SELECT DISTINCT a.Player_ID, a.First_Name, a.Last_Name, c.Team_ID, c.Team_Name
     FROM Players a, Team_Players b, Teams c
     WHERE a.Player_ID = b.Player_ID AND b.Season_ID = SeasonID AND b.Team_ID = c.Team_ID);
     DECLARE CONTINUE HANDLER FOR NOT FOUND SET done=TRUE;
@@ -212,6 +267,7 @@ BEGIN
         `player_id` int(11),
         `first_name` varchar(512),
         `last_name` varchar(512),
+        `team_id` int(11),
         `team_name` varchar(512),
         `goals` int(11),
         `assists` int(11),
@@ -219,18 +275,96 @@ BEGIN
     );
     OPEN cur;
     rdloop: LOOP
-        FETCH cur INTO ID, FST, LST, TM;
+        FETCH cur INTO P_ID, FST, LST, T_ID, TM;
         IF done THEN
             LEAVE rdloop;
         END IF;
         SELECT DISTINCT COALESCE(SUM(b.Goals),0), COALESCE(SUM(b.Assists),0), COALESCE(SEC_TO_TIME(SUM(TIME_TO_SEC(b.Penalty_Minutes))),0)
         INTO @G, @A, @PM
         FROM Games a, Player_Stats b, Teams c, Players d, Team_Players e 
-        WHERE b.Player_ID = d.Player_ID AND b.Game_ID = a.Game_ID AND b.Team_Played_For = c.Team_ID AND d.Player_ID = e.Player_ID AND d.Player_ID = ID AND a.Season_ID = e.Season_ID AND a.Season_ID = SeasonID;     
-        INSERT TMP VALUES (ID,FST,LST,TM,@G,@A,@PM);
+        WHERE b.Player_ID = d.Player_ID AND b.Game_ID = a.Game_ID AND b.Team_Played_For = c.Team_ID AND d.Player_ID = e.Player_ID AND d.Player_ID = P_ID AND a.Season_ID = e.Season_ID AND a.Season_ID = SeasonID;     
+        INSERT TMP VALUES (P_ID,FST,LST,T_ID,TM,@G,@A,@PM);
     END LOOP;
     CLOSE cur;
-    SELECT Player_ID, First_Name, Last_Name, Team_Name, Goals, Assists, Penalty_Minutes FROM TMP;
+    SELECT Player_ID, First_Name, Last_Name, Team_ID, Team_Name, Goals, Assists, Penalty_Minutes FROM TMP;
+END$$
+
+CREATE PROCEDURE `GetPlayerStatsBySeasonANDTeam`(
+    IN SeasonID int(11),
+    IN TeamID int(11)
+)
+BEGIN
+    DECLARE done int DEFAULT FALSE;
+    DECLARE P_ID, J, G, A int(11);
+    DECLARE FST, LST varchar(512);
+    DECLARE PM time;
+    DECLARE cur CURSOR FOR 
+    SELECT DISTINCT a.Player_ID, b.Jersey, a.First_Name, a.Last_Name
+    FROM Players a, Team_Players b, Teams c
+    WHERE a.Player_ID = b.Player_ID AND b.Season_ID = SeasonID AND b.Team_ID = c.Team_ID AND b.Team_ID = TeamID;
+    DECLARE CONTINUE HANDLER FOR NOT FOUND SET done=TRUE;
+    DROP TABLE IF EXISTS `TMP`;
+    CREATE TEMPORARY TABLE TMP(
+        `player_id` int(11),
+        `jersey` int(11),
+        `first_name` varchar(512),
+        `last_name` varchar(512),
+        `goals` int(11),
+        `assists` int(11),
+        `penalty_minutes` time
+    );
+    OPEN cur;
+    rdloop: LOOP
+        FETCH cur INTO P_ID, J, FST, LST;
+        IF done THEN
+            LEAVE rdloop;
+        END IF;
+        SELECT DISTINCT COALESCE(SUM(b.Goals),0), COALESCE(SUM(b.Assists),0), COALESCE(SEC_TO_TIME(SUM(TIME_TO_SEC(b.Penalty_Minutes))),0)
+        INTO @G, @A, @PM
+        FROM Games a, Player_Stats b, Teams c, Players d, Team_Players e 
+        WHERE b.Player_ID = d.Player_ID AND b.Game_ID = a.Game_ID AND b.Team_Played_For = c.Team_ID AND c.Team_ID = TeamID AND d.Player_ID = e.Player_ID AND d.Player_ID = P_ID AND a.Season_ID = e.Season_ID AND a.Season_ID = SeasonID;     
+        INSERT TMP VALUES (P_ID,J,FST,LST,@G,@A,@PM);
+    END LOOP;
+    CLOSE cur;
+    SELECT Player_ID, First_Name, Last_Name, Goals, Assists, Penalty_Minutes FROM TMP;
+END$$
+
+CREATE PROCEDURE `GetPlayerStatsBySeasonFORSpares`(
+    IN SeasonID int(11)
+)
+BEGIN
+    DECLARE done int DEFAULT FALSE;
+    DECLARE P_ID, G, A int(11);
+    DECLARE FST, LST varchar(512);
+    DECLARE PM time;
+    DECLARE cur CURSOR FOR 
+    SELECT DISTINCT a.Player_ID, a.First_Name, a.Last_Name
+    FROM Players a, Team_Players b, Teams c
+    WHERE a.Player_ID = b.Player_ID AND b.Season_ID = SeasonID AND b.Team_ID IS NULL;
+    DECLARE CONTINUE HANDLER FOR NOT FOUND SET done=TRUE;
+    DROP TABLE IF EXISTS `TMP`;
+    CREATE TEMPORARY TABLE TMP(
+        `player_id` int(11),
+        `first_name` varchar(512),
+        `last_name` varchar(512),
+        `goals` int(11),
+        `assists` int(11),
+        `penalty_minutes` time
+    );
+    OPEN cur;
+    rdloop: LOOP
+        FETCH cur INTO P_ID, FST, LST;
+        IF done THEN
+            LEAVE rdloop;
+        END IF;
+        SELECT DISTINCT COALESCE(SUM(b.Goals),0), COALESCE(SUM(b.Assists),0), COALESCE(SEC_TO_TIME(SUM(TIME_TO_SEC(b.Penalty_Minutes))),0)
+        INTO @G, @A, @PM
+        FROM Games a, Player_Stats b, Teams c, Players d, Team_Players e 
+        WHERE b.Player_ID = d.Player_ID AND b.Game_ID = a.Game_ID AND b.Team_Played_For = c.Team_ID AND d.Player_ID = e.Player_ID AND d.Player_ID = P_ID AND a.Season_ID = e.Season_ID AND a.Season_ID = SeasonID;     
+        INSERT TMP VALUES (P_ID,FST,LST,@G,@A,@PM);
+    END LOOP;
+    CLOSE cur;
+    SELECT Player_ID, First_Name, Last_Name, Goals, Assists, Penalty_Minutes FROM TMP;
 END$$
 
 CREATE PROCEDURE `GetTeamPlayerStatsByGame`(
