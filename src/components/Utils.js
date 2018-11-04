@@ -17,11 +17,8 @@ export const Utility = {
         second = b.data[colIndex].props.player.name
       }
 
-      if (first < second) ord = -1
-      if (first > second) ord = 1
-      console.log(first, 'first')
-      console.log(second, 'second')
-      console.log('-------------------------')
+      ord = first.toString().localeCompare(second.toString())
+      console.log(ord, 'order')
       return ord * (order === "desc" ? 1 : -1)
     })
   }
