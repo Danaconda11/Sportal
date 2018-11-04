@@ -7,7 +7,16 @@ import { Utility } from '../components/Utils'
 export default class Players extends React.Component {
   render() {
     const columns = [
-      "Name", "Goals", "Assists", "Points", "Penalty Mins"
+      {
+        name: "Name",
+        options: {
+          filter: false
+        }
+      },
+      "Goals",
+      "Assists",
+      "Points",
+      "Penalty Mins"
     ]
 
     const data = players.list.map((player, key) => (

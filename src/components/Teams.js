@@ -6,12 +6,17 @@ import { NavLink } from 'react-router-dom'
 export default class Teams extends React.Component {
   render() {
     const columns = [
-      "Name", "Games", "Win", "Loss"]
+      {
+        name: "Name",
+        options: {
+          filter: false
+        }
+      }, 
+      "Games", "Win", "Loss"]
 
     const data = teams.list.map((team, key) => (
-      [<NavLink to={`team/${team.id}`}>
-        {team.name}
-      </NavLink>, team.games, team.wins, team.losses])
+      [<NavLink to={`team/${team.id}`}>{team.name}</NavLink>, 
+      team.games, team.wins, team.losses])
     )
 
     const tableConfig = {
