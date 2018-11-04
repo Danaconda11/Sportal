@@ -31,7 +31,7 @@ export default class Players extends React.Component {
 
     return (
       <MUIDataTable
-        title={`Players - ${new Date().getFullYear()}`}
+        title={`Players`}
         data={data}
         columns={columns}
         options={tableConfig}
