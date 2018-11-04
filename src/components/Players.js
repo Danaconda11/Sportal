@@ -1,8 +1,9 @@
-import {Person} from '@material-ui/icons/'
+import { Person } from '@material-ui/icons/'
 import React from 'react'
 import MUIDataTable from "mui-datatables"
 import { players } from '../_data'
 import { NavLink } from 'react-router-dom'
+import { Utility } from '../components/Utils'
 
 const IconLink = props => (
   <NavLink to={`player/${props.player.id}`}>
@@ -15,12 +16,9 @@ export default class Players extends React.Component {
     const columns = [
       {
         name: "Stats",
-        options: {
-          sort: false,
-          filter: false
-        }
       }
-      , "Name", "Goals", "Assists", "Points", "Penalty Mins"]
+      , "Name", "Goals", "Assists", "Points", "Penalty Mins"
+    ]
 
     const data = players.list.map((player, key) => (
       [<IconLink key={key} player={player} />,
@@ -36,7 +34,8 @@ export default class Players extends React.Component {
       filterType: 'dropdown',
       selectableRows: false,
       print: false,
-      download: false
+      download: false,
+      customSort: Utility.switchSort
     }
 
     return (

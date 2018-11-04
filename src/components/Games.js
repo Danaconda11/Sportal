@@ -7,7 +7,7 @@ export default class Games extends React.Component {
     open: false
   }
   handleOpen = () => {
-    this.setState({ open: true });
+    this.setState({ open: true })
   }
   handleClose = () => {
     this.setState({ open: false })
