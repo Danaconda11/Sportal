@@ -1,0 +1,53 @@
+#!/bin/bash
+# set -x
+
+#stop and remove any lingering containers / images / networks
+docker stop $(docker ps -a -q)
+docker rm $(docker ps -a -q)
+docker images | grep none | awk '{ print $3; }' | xargs docker rmi || :
+docker network rm dev 
+
+#create dev network so containers can see each other
+docker network create dev
+echo 'dev network created'
+
+#mariadb
+docker run --network=dev \
+-d \
+-p 3306:3306 \
+--name dev_sql \
+-e MYSQL_ROOT_PASSWORD=pass \
+-v $PWD/SQL_Scripts:/var/lib/mysql \
+mariadb:10
+echo 'mariadb setup done'
+
+#get docker container's dynamic ip on the docker virtual network
+_ip="$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' dev_sql)"
+docker run --network=dev \
+--name tempMaria \
+-e MYSQL_DATABASE=dev_sql \
+-dit \
+mariadb:10 \
+#add the contents of the sql file to the mariadb
+--rm tempMaria sh -c "mysql -h $_ip -uroot -ppass -P 3306 mysql --protocol=tcp && source /var/lib/mysql/Migration.sql;"
+
+#python webserver
+docker run --network=dev \
+-dit \
+--name www.sportal.com \
+-w /app \
+-v $PWD/src:/app \
+-p 80:80 \
+python:3
+echo "python container online"
+
+#phpmyadmin client for mysql
+docker run --network=dev \
+-d \
+-p 9000:80 \
+--name dev_myadmin \
+-e PMA_HOST=dev_sql \
+phpmyadmin/phpmyadmin
+echo 'mysql setup done'
+
+echo "****SQL IP ADDRESS: $_ip****"
